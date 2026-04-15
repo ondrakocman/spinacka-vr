@@ -17,6 +17,8 @@ let isStereo = false;
 let leftCubeTexture = null;
 let rightCubeTexture = null;
 let skyboxMesh = null;
+let leftSkybox = null;
+let rightSkybox = null;
 
 // Mouse / touch look controls
 let isUserInteracting = false;
@@ -115,40 +117,46 @@ function loadScene(filename, stereo) {
       const rightFaces = reorderFaces(allFaces, 6);
       leftCubeTexture = createCubeTextureFromCanvases(leftFaces);
       rightCubeTexture = createCubeTextureFromCanvases(rightFaces);
+      
+      // For stereo: create two separate skyboxes with render layers
+      const skyboxGeometry = new THREE.BoxGeometry(500, 500, 500);
+      
+      // Left eye skybox (layer 1)
+      const leftMaterial = new THREE.MeshBasicMaterial({
+        envMap: leftCubeTexture,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      leftSkybox = new THREE.Mesh(skyboxGeometry, leftMaterial);
+      leftSkybox.layers.set(1);
+      scene.add(leftSkybox);
+      
+      // Right eye skybox (layer 2)
+      const rightMaterial = new THREE.MeshBasicMaterial({
+        envMap: rightCubeTexture,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      rightSkybox = new THREE.Mesh(skyboxGeometry, rightMaterial);
+      rightSkybox.layers.set(2);
+      scene.add(rightSkybox);
+      
+      skyboxMesh = leftSkybox; // For non-VR preview
     } else {
+      // Mono: single skybox
       const faces = reorderFaces(allFaces, 0);
       leftCubeTexture = createCubeTextureFromCanvases(faces);
       rightCubeTexture = null;
+      
+      const skyboxGeometry = new THREE.BoxGeometry(500, 500, 500);
+      const skyboxMaterial = new THREE.MeshBasicMaterial({
+        envMap: leftCubeTexture,
+        side: THREE.BackSide,
+        depthWrite: false
+      });
+      skyboxMesh = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+      scene.add(skyboxMesh);
     }
-
-    // Create skybox mesh (large cube with inverted normals)
-    const skyboxGeometry = new THREE.BoxGeometry(500, 500, 500);
-    const skyboxMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        cubeMap: { value: leftCubeTexture },
-        isRightEye: { value: 0 }
-      },
-      vertexShader: `
-        varying vec3 vWorldDirection;
-        void main() {
-          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-          vWorldDirection = worldPosition.xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform samplerCube cubeMap;
-        varying vec3 vWorldDirection;
-        void main() {
-          gl_FragColor = textureCube(cubeMap, vWorldDirection);
-        }
-      `,
-      side: THREE.BackSide,
-      depthWrite: false
-    });
-    
-    skyboxMesh = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-    scene.add(skyboxMesh);
 
     // Show viewer
     document.getElementById('menu').style.display = 'none';
@@ -190,22 +198,21 @@ function render() {
       Math.sin(phi) * Math.sin(theta)
     );
     camera.lookAt(target);
+    // In non-VR, enable all layers to see the skybox
+    camera.layers.enableAll();
     renderer.render(scene, camera);
   } else {
-    // In VR: Render with stereo support
-    // WebXR renders twice per frame (once per eye)
-    // We hook into the render loop to switch textures
-    if (isStereo && rightCubeTexture && skyboxMesh) {
-      // Use onBeforeRender to switch texture based on which eye is rendering
+    // In VR: Set up stereo rendering with camera layers
+    if (isStereo && leftSkybox && rightSkybox) {
       const xrCamera = renderer.xr.getCamera();
-      skyboxMesh.onBeforeRender = (renderer, scene, camera) => {
-        // Check if this is the right eye camera (second camera in array)
-        const cameras = xrCamera.cameras;
-        if (cameras.length === 2) {
-          const isRightEye = camera === cameras[1];
-          skyboxMesh.material.uniforms.cubeMap.value = isRightEye ? rightCubeTexture : leftCubeTexture;
-        }
-      };
+      const cameras = xrCamera.cameras;
+      
+      if (cameras.length === 2) {
+        // Left eye sees layer 1 (left skybox)
+        cameras[0].layers.set(1);
+        // Right eye sees layer 2 (right skybox)
+        cameras[1].layers.set(2);
+      }
     }
     renderer.render(scene, camera);
   }
