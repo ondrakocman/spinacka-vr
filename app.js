@@ -141,12 +141,13 @@ function loadScene(filename, stereo) {
     renderer.setAnimationLoop(render);
   };
 
-  img.onerror = () => {
+  img.onerror = (e) => {
     document.getElementById('loading').style.display = 'none';
+    console.error('Failed to load image:', filename, e);
     alert('Failed to load image: ' + filename + '\nMake sure the image files are accessible.');
   };
 
-  img.src = IMAGE_BASE + filename;
+  img.src = IMAGE_BASE + encodeURIComponent(filename);
 }
 
 function render() {
