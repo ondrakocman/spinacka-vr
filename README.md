@@ -12,7 +12,7 @@ WebXR panorama viewer for Lumion VR renders. View architectural panoramas in VR 
 ## How to Use
 
 ### On Desktop
-1. Visit the [live demo](https://YOUR_USERNAME.github.io/spinacka-vr/)
+1. Visit the [live demo](https://ondrakocman.github.io/spinacka-vr/)
 2. Select a panorama
 3. Click and drag to look around
 
