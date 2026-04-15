@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spínačka VR Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+    .subtitle {
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+    .scenes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      justify-content: center;
+      max-width: 900px;
+      padding: 0 1rem;
+    }
+    .scene-card {
+      background: #16162a;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 260px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+    }
+    .scene-card:hover {
+      border-color: #667eea;
+      transform: translateY(-4px);
+      box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+    }
+    .scene-card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+    }
+    .scene-card .tag {
+      display: inline-block;
+      background: #667eea33;
+      color: #667eea;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .scene-card .tag.stereo {
+      background: #76ba2d33;
+      color: #76ba2d;
+    }
+    .scene-card p {
+      color: #888;
+      font-size: 0.85rem;
+    }
+    #vr-container {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 100;
+    }
+    #vr-container canvas { width: 100%; height: 100%; }
+    #back-btn {
+      position: fixed;
+      top: 1rem; left: 1rem;
+      z-index: 200;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      border: 1px solid #444;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: none;
+    }
+    #back-btn:hover { background: rgba(50,50,80,0.9); }
+    #enter-vr-btn {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: none;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    }
+    #enter-vr-btn:hover { opacity: 0.9; }
+    #loading {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(10,10,26,0.95);
+      z-index: 300;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.2rem;
+      color: #667eea;
+    }
+    .instructions {
+      margin-top: 2rem;
+      padding: 1rem 1.5rem;
+      background: #16162a;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      max-width: 600px;
+      font-size: 0.85rem;
+      color: #999;
+      line-height: 1.6;
+    }
+    .instructions strong { color: #ccc; }
+  </style>
+</head>
+<body>
+
+  <div id="menu">
+    <h1>Spínačka VR Viewer</h1>
+    <p class="subtitle">Select a panorama to view</p>
+
+    <div class="scenes">
+      <div class="scene-card" onclick="loadScene('01_1 - Panorama.jpg', false)">
+        <h2>Panorama 01_1</h2>
+        <span class="tag">Mono</span>
+        <p>6-face cubemap<br>1536×1536 per face</p>
+      </div>
+      <div class="scene-card" onclick="loadScene('01_4 - Panorama.jpg', false)">
+        <h2>Panorama 01_4</h2>
+        <span class="tag">Mono</span>
+        <p>6-face cubemap<br>1536×1536 per face</p>
+      </div>
+      <div class="scene-card" onclick="loadScene('02.jpg', true)">
+        <h2>Panorama 02</h2>
+        <span class="tag stereo">Stereo 3D</span>
+        <p>12-face stereo cubemap<br>1536×1536 per face</p>
+      </div>
+    </div>
+
+    <div class="instructions">
+      <strong>How to use on Meta Quest 3:</strong><br>
+      1. Make sure your Quest and PC are on the same WiFi network.<br>
+      2. Open the Quest browser and navigate to <strong>http://YOUR_PC_IP:8080</strong><br>
+      3. Select a panorama, then click "Enter VR" to go immersive.<br>
+      4. On desktop, click &amp; drag to look around.
+    </div>
+  </div>
+
+  <div id="vr-container"></div>
+  <button id="back-btn" onclick="backToMenu()">← Back</button>
+  <button id="enter-vr-btn" onclick="enterVR()">Enter VR</button>
+  <div id="loading">Loading panorama...</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
