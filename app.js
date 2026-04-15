@@ -16,6 +16,7 @@ let currentSession = null;
 let isStereo = false;
 let leftCubeTexture = null;
 let rightCubeTexture = null;
+let skyboxMesh = null;
 
 // Mouse / touch look controls
 let isUserInteracting = false;
@@ -103,7 +104,7 @@ function loadScene(filename, stereo) {
     const allFaces = extractAllFaces(img);
     console.log(`Loaded ${filename}: ${img.width}x${img.height}, ${allFaces.length} faces extracted`);
 
-    // Create scene with cubemap background
+    // Create scene with skybox
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 0, 0);
@@ -114,13 +115,40 @@ function loadScene(filename, stereo) {
       const rightFaces = reorderFaces(allFaces, 6);
       leftCubeTexture = createCubeTextureFromCanvases(leftFaces);
       rightCubeTexture = createCubeTextureFromCanvases(rightFaces);
-      scene.background = leftCubeTexture;
     } else {
       const faces = reorderFaces(allFaces, 0);
       leftCubeTexture = createCubeTextureFromCanvases(faces);
       rightCubeTexture = null;
-      scene.background = leftCubeTexture;
     }
+
+    // Create skybox mesh (large cube with inverted normals)
+    const skyboxGeometry = new THREE.BoxGeometry(500, 500, 500);
+    const skyboxMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        cubeMap: { value: leftCubeTexture },
+        isRightEye: { value: 0 }
+      },
+      vertexShader: `
+        varying vec3 vWorldDirection;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldDirection = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform samplerCube cubeMap;
+        varying vec3 vWorldDirection;
+        void main() {
+          gl_FragColor = textureCube(cubeMap, vWorldDirection);
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false
+    });
+    
+    skyboxMesh = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+    scene.add(skyboxMesh);
 
     // Show viewer
     document.getElementById('menu').style.display = 'none';
@@ -164,11 +192,21 @@ function render() {
     camera.lookAt(target);
     renderer.render(scene, camera);
   } else {
-    // In VR: WebXR handles head tracking automatically.
-    // For stereo, ideally we'd use WebXR Layers to send different
-    // images per eye — but browser support is limited. The mono
-    // cubemap (left eye) is shown to both eyes, which still gives
-    // a great immersive panoramic experience with full head tracking.
+    // In VR: Render with stereo support
+    // WebXR renders twice per frame (once per eye)
+    // We hook into the render loop to switch textures
+    if (isStereo && rightCubeTexture && skyboxMesh) {
+      // Use onBeforeRender to switch texture based on which eye is rendering
+      const xrCamera = renderer.xr.getCamera();
+      skyboxMesh.onBeforeRender = (renderer, scene, camera) => {
+        // Check if this is the right eye camera (second camera in array)
+        const cameras = xrCamera.cameras;
+        if (cameras.length === 2) {
+          const isRightEye = camera === cameras[1];
+          skyboxMesh.material.uniforms.cubeMap.value = isRightEye ? rightCubeTexture : leftCubeTexture;
+        }
+      };
+    }
     renderer.render(scene, camera);
   }
 }
